@@ -287,9 +287,6 @@
         let drawControl = null;
         let currentLayer = 'ec';
 
-        // API URL برای تحلیل محدوده
-        const API_URL = 'https://mahkzmi.pythonanywhere.com/predict-quick';
-
         // ============================================================
         // بارگذاری داده و راه‌اندازی
         // ============================================================
@@ -359,6 +356,7 @@
                     تعداد اضلاع: ${layer.getLatLngs()[0].length} نقطه
                 `;
                 document.getElementById('areaInfo').classList.add('show');
+                document.getElementById('analysisResult').style.display = 'none';
             });
         }
 
@@ -429,7 +427,60 @@
             updateLayer(currentLayer);
         });
 
+        // ============================================================
+        // توابع کمکی
+        // ============================================================
+        function estimateEnvironmentalData(lat, lon) {
+            let ndvi = 0.4 + (37 - lat) / 35;
+            ndvi = Math.min(0.85, Math.max(0.15, ndvi));
+            let precip = 150 + (37 - lat) * 45;
+            precip = Math.min(900, Math.max(150, precip));
+            let temp = 12 + (35 - lat) * 0.45;
+            temp = Math.min(28, Math.max(8, temp));
+            let elev = 200 + Math.abs(35 - lat) * 100;
+            elev = Math.min(2500, Math.max(50, elev));
+            let clay = 15 + Math.abs(lat - 32) * 1.4;
+            clay = Math.min(50, Math.max(10, clay));
+            return { ndvi: ndvi.toFixed(4), precip: precip.toFixed(1), temp: temp.toFixed(1), elev: elev.toFixed(1), clay: clay.toFixed(1) };
+        }
+
+        function getBestCrop(ec) {
+            if (ec < 2) return 'گندم 🌾';
+            if (ec < 4) return 'جو 🌾';
+            if (ec < 6) return 'پسته 🌰';
+            if (ec < 8) return 'جو مقاوم 🌾';
+            if (ec < 12) return 'کشت متوقف شود ⚠️';
+            return 'احیای خاک ضروری است 🚫';
+        }
+
+        function displayAnalysisResult(data, env) {
+            const bestCrop = getBestCrop(data.ec);
+            document.getElementById('analysisDetails').innerHTML = `
+                <div style="margin-bottom: 10px;">
+                    <strong>🌱 خصوصیات خاک:</strong><br>
+                    🧂 شوری: ${data.ec} dS/m<br>
+                    ⚗️ pH: ${data.ph}<br>
+                    🌿 مواد آلی: ${data.organic_matter}%<br>
+                    🌍 کربن: ${data.carbon}%
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <strong>🏆 بهترین محصول پیشنهادی:</strong><br>
+                    ${bestCrop}
+                </div>
+                <div>
+                    <strong>📍 مرکز محدوده:</strong><br>
+                    ${env.lat}, ${env.lon}
+                </div>
+                <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #ddd;">
+                    <strong>📋 برای دریافت نقشه مدیریتی (Prescription Map) با ما تماس بگیرید.</strong>
+                </div>
+            `;
+            document.getElementById('analysisResult').style.display = 'block';
+        }
+
+        // ============================================================
         // تحلیل محدوده رسم شده
+        // ============================================================
         document.getElementById('analyzeAreaBtn').addEventListener('click', async () => {
             const layers = drawnItems.getLayers();
             if (layers.length === 0) {
@@ -457,77 +508,29 @@
             document.getElementById('analysisResult').style.display = 'none';
             
             try {
-                const response = await fetch(`${API_URL}/predict-quick`, {
-                    method: 'GET',
-                    headers: { 'Content-Type': 'application/json' }
-                });
+                const url = `https://mahkzmi.pythonanywhere.com/predict-quick?ndvi=${env.ndvi}&precipitation=${env.precip}&temperature=${env.temp}&elevation=${env.elev}&clay=${env.clay}`;
+                console.log("Fetching URL:", url);
                 
-                // ساخت URL با پارامترها
-                const url = `${API_URL}/predict-quick?ndvi=${env.ndvi}&precipitation=${env.precip}&temperature=${env.temp}&elevation=${env.elev}&clay=${env.clay}`;
-                const apiResponse = await fetch(url);
-                const data = await apiResponse.json();
+                const response = await fetch(url);
+                const data = await response.json();
                 
-                if (apiResponse.ok) {
+                if (response.ok) {
                     displayAnalysisResult(data, env);
                 } else {
-                    throw new Error('API error');
+                    throw new Error('API error: ' + JSON.stringify(data));
                 }
             } catch (error) {
+                console.error("Fetch error:", error);
                 document.getElementById('analysisDetails').innerHTML = `
                     <span style="color: #dc2626;">❌ خطا در ارتباط با سرور</span><br>
-                    مطمئن شوید API در حال اجراست (python api_unified.py)
+                    ${error.message}<br>
+                    مطمئن شوید API در حال اجراست و آدرس درست است.
                 `;
                 document.getElementById('analysisResult').style.display = 'block';
             } finally {
                 document.getElementById('loading').classList.remove('show');
             }
         });
-
-        function estimateEnvironmentalData(lat, lon) {
-            let ndvi = 0.4 + (37 - lat) / 35;
-            ndvi = Math.min(0.85, Math.max(0.15, ndvi));
-            let precip = 150 + (37 - lat) * 45;
-            precip = Math.min(900, Math.max(150, precip));
-            let temp = 12 + (35 - lat) * 0.45;
-            temp = Math.min(28, Math.max(8, temp));
-            let elev = 200 + Math.abs(35 - lat) * 100;
-            elev = Math.min(2500, Math.max(50, elev));
-            let clay = 15 + Math.abs(lat - 32) * 1.4;
-            clay = Math.min(50, Math.max(10, clay));
-            return { ndvi: ndvi.toFixed(4), precip: precip.toFixed(1), temp: temp.toFixed(1), elev: elev.toFixed(1), clay: clay.toFixed(1) };
-        }
-
-        function displayAnalysisResult(data, env) {
-            const soil = data;
-            const bestCrop = getBestCrop(soil.ec);
-            
-            document.getElementById('analysisDetails').innerHTML = `
-                <div style="margin-bottom: 10px;">
-                    <strong>🌱 خصوصیات خاک:</strong><br>
-                    🧂 شوری: ${soil.ec} dS/m<br>
-                    ⚗️ pH: ${soil.ph}<br>
-                    🌿 مواد آلی: ${soil.organic_matter}%<br>
-                    🌍 کربن: ${soil.carbon}%
-                </div>
-                <div style="margin-bottom: 10px;">
-                    <strong>🏆 بهترین محصول پیشنهادی:</strong><br>
-                    ${bestCrop}
-                </div>
-                <div>
-                    <strong>📐 محدوده تحلیل شده:</strong><br>
-                    مرکز محدوده: ${env.lat}, ${env.lon}
-                </div>
-            `;
-            document.getElementById('analysisResult').style.display = 'block';
-        }
-
-        function getBestCrop(ec) {
-            if (ec < 2) return 'گندم 🌾';
-            if (ec < 4) return 'جو 🌾';
-            if (ec < 6) return 'پسته 🌰';
-            if (ec < 8) return 'جو مقاوم 🌾';
-            return 'اصلاح خاک ضروری است ⚠️';
-        }
 
         // ذخیره نقشه
         document.getElementById('downloadBtn').addEventListener('click', () => {
