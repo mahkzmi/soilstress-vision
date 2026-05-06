@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>SoilStress Vision | نقشه زنده تنش خاک</title>
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet Draw -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0fdf4;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #0a2e1c 0%, #1a5d3a 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+        }
+
+        .header p {
+            font-size: 0.8rem;
+            opacity: 0.9;
+        }
+
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            padding: 20px;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .map-container {
+            flex: 2;
+            min-width: 300px;
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        #map {
+            height: 550px;
+            width: 100%;
+        }
+
+        .sidebar {
+            flex: 1;
+            min-width: 280px;
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .sidebar h3 {
+            color: #1a5d3a;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e8f5e9;
+            padding-bottom: 8px;
+        }
+
+        .layer-selector {
+            margin-bottom: 20px;
+        }
+
+        .layer-selector label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .layer-selector select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            background: #f8fafc;
+        }
+
+        .color-legend {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 16px;
+        }
+
+        .color-bar {
+            height: 20px;
+            border-radius: 10px;
+            margin: 10px 0;
+            background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);
+        }
+
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            color: #666;
+        }
+
+        .info-box {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f0fdf4;
+            border-radius: 16px;
+            font-size: 0.8rem;
+        }
+
+        .btn-download, .btn-analyze {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #1a5d3a 0%, #2d6a4f 100%);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: all 0.3s;
+        }
+
+        .btn-download:hover, .btn-analyze:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(26,93,58,0.3);
+        }
+
+        .btn-analyze {
+            background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+        }
+
+        .area-info {
+            margin-top: 15px;
+            padding: 12px;
+            background: #e8f5e9;
+            border-radius: 16px;
+            text-align: center;
+            display: none;
+        }
+
+        .area-info.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            background: white;
+            border-radius: 16px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid #e2e8f0;
+            border-top-color: #1a5d3a;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #888;
+            font-size: 0.7rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🗺️ SoilStress Vision</h1>
+        <p>نقشه زنده تنش خاک | محدوده زمینت رو رسم کن، نقشه تنش رو ببین</p>
+    </div>
+
+    <div class="container">
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+
+        <div class="sidebar">
+            <h3><i class="fas fa-draw-polygon"></i> ابزار نقشه</h3>
+            
+            <div class="info-box" id="toolInfo">
+                <strong>✏️ ابزارهای رسم:</strong><br>
+                • کلیک روی آیکون 🟦 در گوشه نقشه<br>
+                • چندضلعی (Polygon) را انتخاب کن<br>
+                • محدوده زمینت را روی نقشه رسم کن
+            </div>
+
+            <div class="layer-selector">
+                <label>📊 لایه نمایش:</label>
+                <select id="layerSelect">
+                    <option value="ec">🧂 شوری (EC) - dS/m</option>
+                    <option value="ph">⚗️ اسیدیته (pH)</option>
+                    <option value="organic_matter">🌿 مواد آلی (%)</option>
+                    <option value="carbon">🌍 کربن آلی (%)</option>
+                </select>
+            </div>
+
+            <div class="color-legend" id="legend">
+                <div style="font-weight: 600; margin-bottom: 10px;">🎨 راهنمای رنگ‌ها</div>
+                <div class="color-bar"></div>
+                <div class="legend-labels">
+                    <span id="minLabel">کم</span>
+                    <span id="midLabel">متوسط</span>
+                    <span id="maxLabel">زیاد</span>
+                </div>
+            </div>
+
+            <div id="areaInfo" class="area-info">
+                <strong>📐 محدوده انتخاب شده</strong>
+                <div id="areaDetails"></div>
+                <button id="analyzeAreaBtn" class="btn-analyze">🔍 تحلیل این محدوده</button>
+            </div>
+
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>در حال تحلیل محدوده...</p>
+            </div>
+
+            <div id="analysisResult" class="info-box" style="display: none;">
+                <strong>📊 نتیجه تحلیل</strong>
+                <div id="analysisDetails"></div>
+            </div>
+
+            <button id="downloadBtn" class="btn-download">
+                📸 ذخیره نقشه به عنوان تصویر
+            </button>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>© ۲۰۲۶ VARIA AgTech Studio | استودیوی فناوری‌های کشاورزی هوشمند</p>
+        <p>🌾 نقشه بر اساس پیش‌بینی‌های هوش مصنوعی ABAK 2.0</p>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script>
+        // ============================================================
+        // متغیرهای سراسری
+        // ============================================================
+        let soilData = null;
+        let currentOverlay = null;
+        let map = null;
+        let drawnItems = null;
+        let drawControl = null;
+        let currentLayer = 'ec';
+
+        // API URL برای تحلیل محدوده
+        const API_URL = 'http://127.0.0.1:8001';
+
+        // ============================================================
+        // بارگذاری داده و راه‌اندازی
+        // ============================================================
+        fetch('soil_data.json')
+            .then(response => response.json())
+            .then(data => {
+                soilData = data;
+                initMap();
+                initDrawControl();
+                updateLayer('ec');
+            })
+            .catch(error => {
+                console.error('خطا در بارگذاری داده:', error);
+                document.getElementById('toolInfo').innerHTML = '<strong>❌ خطا</strong><br>داده‌های نقشه بارگذاری نشد. ابتدا raster_maker.py را اجرا کنید.';
+            });
+
+        function initMap() {
+            map = L.map('map').setView([32.5, 53.5], 6);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+                subdomains: 'abcd'
+            }).addTo(map);
+        }
+
+        function initDrawControl() {
+            drawnItems = new L.FeatureGroup();
+            map.addLayer(drawnItems);
+
+            drawControl = new L.Control.Draw({
+                draw: {
+                    polygon: {
+                        allowIntersection: false,
+                        showArea: true,
+                        shapeOptions: {
+                            color: '#ea580c',
+                            weight: 3,
+                            opacity: 0.8,
+                            fillColor: '#ea580c',
+                            fillOpacity: 0.2
+                        }
+                    },
+                    polyline: false,
+                    rectangle: false,
+                    circle: false,
+                    circlemarker: false,
+                    marker: false
+                },
+                edit: {
+                    featureGroup: drawnItems,
+                    remove: true
+                }
+            });
+            map.addControl(drawControl);
+
+            map.on(L.Draw.Event.CREATED, function(event) {
+                const layer = event.layer;
+                drawnItems.clearLayers();
+                drawnItems.addLayer(layer);
+                
+                // محاسبه مساحت محدوده
+                const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+                const areaHa = (area / 10000).toFixed(1);
+                
+                // نمایش اطلاعات محدوده
+                document.getElementById('areaDetails').innerHTML = `
+                    مساحت: ${areaHa} هکتار<br>
+                    تعداد اضلاع: ${layer.getLatLngs()[0].length} نقطه
+                `;
+                document.getElementById('areaInfo').classList.add('show');
+            });
+        }
+
+        // ============================================================
+        // به‌روزرسانی لایه نقشه
+        // ============================================================
+        function updateLayer(parameter) {
+            if (!soilData || !map) return;
+
+            if (currentOverlay) {
+                map.removeLayer(currentOverlay);
+            }
+
+            let title = '';
+            let unit = '';
+            let minVal, maxVal;
+
+            switch(parameter) {
+                case 'ec': title = 'شوری (EC)'; unit = 'dS/m'; break;
+                case 'ph': title = 'اسیدیته (pH)'; unit = ''; break;
+                case 'organic_matter': title = 'مواد آلی'; unit = '%'; break;
+                case 'carbon': title = 'کربن آلی'; unit = '%'; break;
+            }
+
+            document.getElementById('minLabel').innerHTML = `${soilData.z_min} ${unit}`;
+            document.getElementById('maxLabel').innerHTML = `${soilData.z_max} ${unit}`;
+            document.getElementById('midLabel').innerHTML = `${((soilData.z_min + soilData.z_max)/2).toFixed(1)} ${unit}`;
+
+            const latMin = soilData.lat_min;
+            const latMax = soilData.lat_max;
+            const lonMin = soilData.lon_min;
+            const lonMax = soilData.lon_max;
+            const colors = soilData.colors;
+            
+            const latStep = (latMax - latMin) / colors.length;
+            const lonStep = (lonMax - lonMin) / colors[0].length;
+
+            const overlays = [];
+            
+            for (let i = 0; i < colors.length; i++) {
+                const lat1 = latMin + i * latStep;
+                const lat2 = lat1 + latStep;
+                
+                for (let j = 0; j < colors[i].length; j++) {
+                    const lon1 = lonMin + j * lonStep;
+                    const lon2 = lon1 + lonStep;
+                    const color = colors[i][j];
+                    
+                    const rect = L.rectangle([[lat1, lon1], [lat2, lon2]], {
+                        color: color,
+                        weight: 0,
+                        fillColor: color,
+                        fillOpacity: 0.7,
+                        interactive: true
+                    }).addTo(map);
+                    
+                    rect.bindPopup(`${title}: ${(soilData.z_min + (soilData.z_max - soilData.z_min) * (i / colors.length)).toFixed(2)} ${unit}`);
+                    overlays.push(rect);
+                }
+            }
+            
+            currentOverlay = L.layerGroup(overlays).addTo(map);
+        }
+
+        // تغییر لایه
+        document.getElementById('layerSelect').addEventListener('change', (e) => {
+            currentLayer = e.target.value;
+            updateLayer(currentLayer);
+        });
+
+        // تحلیل محدوده رسم شده
+        document.getElementById('analyzeAreaBtn').addEventListener('click', async () => {
+            const layers = drawnItems.getLayers();
+            if (layers.length === 0) {
+                alert('لطفاً ابتدا محدوده زمین را روی نقشه رسم کنید.');
+                return;
+            }
+
+            const polygon = layers[0];
+            const latlngs = polygon.getLatLngs()[0];
+            
+            // محاسبه مرکز محدوده
+            let sumLat = 0, sumLng = 0;
+            latlngs.forEach(p => {
+                sumLat += p.lat;
+                sumLng += p.lng;
+            });
+            const centerLat = sumLat / latlngs.length;
+            const centerLng = sumLng / latlngs.length;
+
+            // تخمین داده‌های محیطی
+            const env = estimateEnvironmentalData(centerLat, centerLng);
+            
+            // نمایش لودینگ
+            document.getElementById('loading').classList.add('show');
+            document.getElementById('analysisResult').style.display = 'none';
+            
+            try {
+                const response = await fetch(`${API_URL}/predict-quick`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                // ساخت URL با پارامترها
+                const url = `${API_URL}/predict-quick?ndvi=${env.ndvi}&precipitation=${env.precip}&temperature=${env.temp}&elevation=${env.elev}&clay=${env.clay}`;
+                const apiResponse = await fetch(url);
+                const data = await apiResponse.json();
+                
+                if (apiResponse.ok) {
+                    displayAnalysisResult(data, env);
+                } else {
+                    throw new Error('API error');
+                }
+            } catch (error) {
+                document.getElementById('analysisDetails').innerHTML = `
+                    <span style="color: #dc2626;">❌ خطا در ارتباط با سرور</span><br>
+                    مطمئن شوید API در حال اجراست (python api_unified.py)
+                `;
+                document.getElementById('analysisResult').style.display = 'block';
+            } finally {
+                document.getElementById('loading').classList.remove('show');
+            }
+        });
+
+        function estimateEnvironmentalData(lat, lon) {
+            let ndvi = 0.4 + (37 - lat) / 35;
+            ndvi = Math.min(0.85, Math.max(0.15, ndvi));
+            let precip = 150 + (37 - lat) * 45;
+            precip = Math.min(900, Math.max(150, precip));
+            let temp = 12 + (35 - lat) * 0.45;
+            temp = Math.min(28, Math.max(8, temp));
+            let elev = 200 + Math.abs(35 - lat) * 100;
+            elev = Math.min(2500, Math.max(50, elev));
+            let clay = 15 + Math.abs(lat - 32) * 1.4;
+            clay = Math.min(50, Math.max(10, clay));
+            return { ndvi: ndvi.toFixed(4), precip: precip.toFixed(1), temp: temp.toFixed(1), elev: elev.toFixed(1), clay: clay.toFixed(1) };
+        }
+
+        function displayAnalysisResult(data, env) {
+            const soil = data;
+            const bestCrop = getBestCrop(soil.ec);
+            
+            document.getElementById('analysisDetails').innerHTML = `
+                <div style="margin-bottom: 10px;">
+                    <strong>🌱 خصوصیات خاک:</strong><br>
+                    🧂 شوری: ${soil.ec} dS/m<br>
+                    ⚗️ pH: ${soil.ph}<br>
+                    🌿 مواد آلی: ${soil.organic_matter}%<br>
+                    🌍 کربن: ${soil.carbon}%
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <strong>🏆 بهترین محصول پیشنهادی:</strong><br>
+                    ${bestCrop}
+                </div>
+                <div>
+                    <strong>📐 محدوده تحلیل شده:</strong><br>
+                    مرکز محدوده: ${env.lat}, ${env.lon}
+                </div>
+            `;
+            document.getElementById('analysisResult').style.display = 'block';
+        }
+
+        function getBestCrop(ec) {
+            if (ec < 2) return 'گندم 🌾';
+            if (ec < 4) return 'جو 🌾';
+            if (ec < 6) return 'پسته 🌰';
+            if (ec < 8) return 'جو مقاوم 🌾';
+            return 'اصلاح خاک ضروری است ⚠️';
+        }
+
+        // ذخیره نقشه
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            html2canvas(document.querySelector('.map-container')).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'soil_stress_map.png';
+                link.href = canvas.toDataURL();
+                link.click();
+            });
+        });
+    </script>
+</body>
+</html>
